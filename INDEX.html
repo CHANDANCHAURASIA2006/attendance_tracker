@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html> <head>
+    <script defer data-domain="attendence-tracker-three.vercel.app" src="https://plausible.io/js/script.js"></script>
+
+    <title>College Attendance Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* basic styling hsere */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* this is for the dark mode */
+        body.dark {
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+        body.dark .card {
+            background-color: #1e293b;
+            border-color: #334155;
+        }
+        body.dark input, body.dark select {
+            background-color: #0f172a;
+            border-color: #334155;
+            color: #f1f5f9;
+        }
+        body.dark .text-muted {
+            color: #94a3b8;
+        }
+        body.dark .subject-item:hover {
+            background-color: #334155;
+        }
+        body.dark .selected-subject {
+            background-color: #3b82f6; /* blue */
+            color: white;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container mx-auto p-4 max-w-6xl">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold">Attendance Tracker</h1>
+                <p class="text-slate-500 text-muted">B.Tech CSE/SEMESTER-4 2026</p>
+            </div>
+            <button id="theme-switcher" class="p-2 rounded-full border">
+                Toggle Theme
+            </button>
+        </div>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-1 space-y-4">
+                <div class="card p-4 rounded-lg">
+                    <h2 class="text-2xl font-bold mb-4">My Subjects</h2>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="subject-name" placeholder="New subject name" class="w-full p-2 border rounded-md">
+                        <button id="add-subject-btn" class="bg-blue-600 text-white p-2 rounded-md font-bold">Add</button>
+                    </div>
+                    <div id="subject-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+                </div>
+                <div id="dashboard" class="card p-4 rounded-lg hidden">
+                    <h2 id="dashboard-title" class="text-2xl font-bold mb-4">Dashboard</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4 text-center">
+                            <div>
+                                <p class="text-3xl font-bold text-green-500" id="stat-percentage">0%</p>
+                                <p class="text-slate-500 text-muted text-sm">Overall</p>
+                            </div>
+                            <div>
+                                <p class="text-3xl font-bold" id="stat-attended">0/0</p>
+                                <p class="text-slate-500 text-muted text-sm">Attended</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold mb-2">Bunk-o-Meter</h3>
+                            <div class="flex items-center gap-2 text-sm">
+                                <label for="min-attendance">Goal:</label>
+                                <input type="number" id="min-attendance" value="75" class="w-16 p-1 border rounded-md text-center">
+                                <span>%</span>
+                            </div>
+                            <p id="bunk-info" class="text-slate-500 text-muted mt-2 text-sm h-10"></p>
+                        </div>
+                         <div>
+                            <h3 class="font-bold mb-2">Actions</h3>
+                            <div class="flex gap-2">
+                                <button id="export-csv-btn" class="w-full bg-slate-600 text-white p-2 rounded-md text-sm">Export CSV</button>
+                                <button id="clear-data-btn" class="w-full bg-red-500 text-white p-2 rounded-md text-sm">Clear All</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 card p-5 rounded-lg">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="prev-month-btn" class="p-2 rounded-full border">&lt;</button>
+                    <h2 id="month-year" class="text-2xl font-bold"></h2>
+                    <button id="next-month-btn" class="p-2 rounded-full border">&gt;</button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center font-bold text-slate-500 text-muted mb-2">
+                    <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+                </div>
+                <div id="calendar-days" class="grid grid-cols-7 gap-2"></div>
+            </div>
+            
+            <div class="lg:col-span-3 card p-4 rounded-lg">
+                   <h2 class="text-2xl font-bold mb-4">Attendance Overview</h2>
+                   <canvas id="attendanceChart"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <div id="attendance-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="card p-6 rounded-lg w-full max-w-sm m-4">
+            <h3 class="text-xl font-bold mb-2">Mark Attendance</h3>
+            <p class="text-slate-500 text-muted mb-4">For <span id="modal-date" class="font-bold"></span></p>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <label for="attended-count">Classes Attended:</label>
+                    <input type="number" id="attended-count" value="1" class="w-20 p-2 border rounded-md text-center">
+                </div>
+                 <div class="flex items-center justify-between">
+                    <label for="total-count">Total Classes:</label>
+                    <input type="number" id="total-count" value="1" class="w-20 p-2 border rounded-md text-center">
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end space-x-2">
+                <button id="modal-cancel-btn" class="bg-slate-200 px-4 py-2 rounded-md">Cancel</button>
+                <button id="modal-save-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md">Save</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="notification" class="fixed top-5 right-5 bg-red-500 text-white p-3 rounded-lg hidden">
+        <p id="notification-message"></p>
+    </div>
+
+    <script>
+    
+    // My Awesome Attendance App v1.0 - by me
+    // dont touch this code unless you know what ur doing
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // all the stuff we need to remember
+        var subjects = [];
+        var attendance = {}; // this is a big dictionary
+        var currentMonth = new Date().getMonth();
+        var currentYear = new Date().getFullYear();
+        var selectedSubjectId = null;
+        var selectedDate = null;
+        var theme = 'light';
+        var minAttendance = 75;
+        var myChart = null; // for the graph
+
+        // get all the html elements so we can use them
+        var subjectNameInput = document.getElementById('subject-name');
+        var addSubjectBtn = document.getElementById('add-subject-btn');
+        var subjectList = document.getElementById('subject-list');
+        var monthYearDisplay = document.getElementById('month-year');
+        var calendarDays = document.getElementById('calendar-days');
+        var prevMonthBtn = document.getElementById('prev-month-btn');
+        var nextMonthBtn = document.getElementById('next-month-btn');
+        var modal = document.getElementById('attendance-modal');
+        var modalDate = document.getElementById('modal-date');
+        var attendedCountInput = document.getElementById('attended-count');
+        var totalCountInput = document.getElementById('total-count');
+        var modalCancelBtn = document.getElementById('modal-cancel-btn');
+        var modalSaveBtn = document.getElementById('modal-save-btn');
+        var clearDataBtn = document.getElementById('clear-data-btn');
+        var dashboard = document.getElementById('dashboard');
+        var dashboardTitle = document.getElementById('dashboard-title');
+        var statPercentage = document.getElementById('stat-percentage');
+        var statAttended = document.getElementById('stat-attended');
+        var minAttendanceInput = document.getElementById('min-attendance');
+        var bunkInfo = document.getElementById('bunk-info');
+        var exportCsvBtn = document.getElementById('export-csv-btn');
+        var themeSwitcher = document.getElementById('theme-switcher');
+
+        // try to get the old data back from the computer memory
+        function loadData() {
+            var savedData = localStorage.getItem('myAttendanceApp');
+            if (savedData) {
+                var loadedState = JSON.parse(savedData);
+                subjects = loadedState.subjects || [];
+                attendance = loadedState.attendance || {};
+                theme = loadedState.theme || 'light';
+                minAttendance = loadedState.minAttendance || 75;
+            }
+            minAttendanceInput.value = minAttendance;
+        }
+
+        // save everything so it doesn't disappear when you close the page
+        function saveData() {
+            var stateToSave = {
+                subjects: subjects,
+                attendance: attendance,
+                theme: theme,
+                minAttendance: minAttendance
+            };
+            localStorage.setItem('myAttendanceApp', JSON.stringify(stateToSave));
+        }
+        
+        // make the little box pop up when something goes wrong
+        function showNotification(message) {
+            var notification = document.getElementById('notification');
+            var notificationMessage = document.getElementById('notification-message');
+            notificationMessage.textContent = message;
+            notification.classList.remove('hidden');
+            setTimeout(function() {
+                notification.classList.add('hidden');
+            }, 3000); // hide after 3 seconds
+        }
+
+        // for the dark mode hackers
+        function applyTheme() {
+            if (theme === 'dark') {
+                document.body.classList.add('dark');
+            } else {
+                document.body.classList.remove('dark');
+            }
+            renderChart(); // redraw the chart cause the colors changed
+        }
+
+        function toggleTheme() {
+            if (theme === 'light') {
+                theme = 'dark';
+            } else {
+                theme = 'light';
+            }
+            applyTheme();
+            saveData();
+        }
+
+        // put the subjects on the screen
+        function renderSubjects() {
+            subjectList.innerHTML = ''; // clear the old list
+            if (subjects.length === 0) {
+                subjectList.innerHTML = '<p class="text-slate-500 text-muted text-center p-4">Add a subject to start</p>';
+                dashboard.classList.add('hidden');
+            } else {
+                for (var i = 0; i < subjects.length; i++) {
+                    var subject = subjects[i];
+                    var el = document.createElement('div');
+                    var isSelected = selectedSubjectId === subject.id;
+                    
+                    // this line is complicated... it changes the style if selected
+                    el.className = 'p-2 rounded-lg cursor-pointer flex justify-between items-center subject-item ' + (isSelected ? 'bg-blue-500 text-white selected-subject' : 'bg-slate-100 hover:bg-slate-200');
+                    
+                    el.textContent = subject.name;
+                    el.dataset.id = subject.id; // hide the id in the element
+                    
+                    var delBtn = document.createElement('button');
+                    delBtn.innerHTML = '&times;'; // the "x" button
+                    delBtn.className = 'font-bold text-red-500 hover:text-red-700 text-xl ml-2';
+                    delBtn.dataset.id = subject.id;
+
+                    delBtn.onclick = function(e) {
+                        e.stopPropagation(); // stop the click from selecting the subject
+                        deleteSubject(e.target.dataset.id);
+                    };
+
+                    el.appendChild(delBtn);
+
+                    el.onclick = function() {
+                        selectedSubjectId = this.dataset.id;
+                        renderSubjects();
+                        renderCalendar();
+                        renderDashboard();
+                    };
+                    subjectList.appendChild(el);
+                }
+            }
+        }
+        
+        // draw the calendar, this was hard to figure out
+        function renderCalendar() {
+            calendarDays.innerHTML = '';
+            var date = new Date(currentYear, currentMonth, 1);
+            monthYearDisplay.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+            
+            var firstDayIndex = date.getDay();
+            var lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            // make empty boxes for the start of the month
+            for (var i = 0; i < firstDayIndex; i++) {
+                calendarDays.innerHTML += '<div></div>';
+            }
+            
+            // make a box for each day
+            for (var i = 1; i <= lastDay; i++) {
+                var dayEl = document.createElement('div');
+                var fullDate = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(i).padStart(2, '0');
+                
+                dayEl.className = 'p-2 border rounded-md cursor-pointer text-center hover:bg-slate-100 flex items-center justify-center aspect-square';
+                dayEl.textContent = i;
+                dayEl.dataset.date = fullDate;
+                
+                var today = new Date();
+                if (currentYear === today.getFullYear() && currentMonth === today.getMonth() && i === today.getDate()) {
+                    dayEl.classList.add('bg-blue-500', 'text-white', 'font-bold');
+                }
+                
+                // color the day based on attendance
+                if (selectedSubjectId && attendance[fullDate] && attendance[fullDate][selectedSubjectId]) {
+                    var record = attendance[fullDate][selectedSubjectId];
+                    var percentage = (record.attended / record.total) * 100;
+                    if (percentage >= minAttendance) {
+                        dayEl.classList.add('bg-green-200');
+                    } else if (percentage > 0) {
+                        dayEl.classList.add('bg-yellow-200');
+                    } else {
+                        dayEl.classList.add('bg-red-200');
+                    }
+                }
+                
+                dayEl.onclick = function() {
+                    if (!selectedSubjectId) {
+                        showNotification('Please select a subject first!');
+                        return;
+                    }
+                    selectedDate = this.dataset.date;
+                    openModal();
+                };
+                calendarDays.appendChild(dayEl);
+            }
+        }
+
+        // the numbers part
+        function renderDashboard() {
+            if (!selectedSubjectId) {
+                dashboard.classList.add('hidden');
+                return;
+            }
+            dashboard.classList.remove('hidden');
+            
+            var subject = subjects.find(function(s) { return s.id === selectedSubjectId; });
+            dashboardTitle.textContent = subject.name + ' Dashboard';
+            
+            var totalAttended = 0;
+            var totalClasses = 0;
+            
+            // loop through all attendance records for this subject
+            for (var date in attendance) {
+                if (attendance[date][selectedSubjectId]) {
+                    totalAttended += attendance[date][selectedSubjectId].attended;
+                    totalClasses += attendance[date][selectedSubjectId].total;
+                }
+            }
+            
+            var percentage = 0;
+            if (totalClasses > 0) {
+                percentage = (totalAttended / totalClasses) * 100;
+            }
+            
+            statPercentage.textContent = percentage.toFixed(1) + '%';
+            statAttended.textContent = totalAttended + '/' + totalClasses;
+            
+            // IMPORTANT MATH DO NOT TOUCH
+            var minPercent = minAttendance / 100;
+            bunkInfo.className = 'text-slate-500 text-muted mt-2 text-sm h-10'; // reset style
+
+            if (totalClasses === 0) {
+                 bunkInfo.textContent = 'No classes recorded yet.';
+            } else if (percentage < minAttendance) {
+                var classesToAttend = Math.ceil((minPercent * totalClasses - totalAttended) / (1 - minPercent));
+                bunkInfo.textContent = 'You need to attend the next ' + classesToAttend + ' class(es) to be safe.';
+                bunkInfo.classList.add('text-yellow-500');
+            } else {
+                var classesToMiss = Math.floor((totalAttended - minPercent * totalClasses) / minPercent);
+                bunkInfo.textContent = 'You are safe. You can bunk ' + classesToMiss + ' class(es).';
+                bunkInfo.classList.add('text-green-500');
+            }
+        }
+        
+        // this function draws the bar graph
+        function renderChart() {
+            var ctx = document.getElementById('attendanceChart').getContext('2d');
+            var datasets = [];
+            
+            // create one bar for each subject
+            for(var i=0; i < subjects.length; i++){
+                var subject = subjects[i];
+                var totalAttended = 0;
+                var totalClasses = 0;
+                for (var date in attendance) {
+                    if (attendance[date][subject.id]) {
+                        totalAttended += attendance[date][subject.id].attended;
+                        totalClasses += attendance[date][subject.id].total;
+                    }
+                }
+                var percentage = totalClasses > 0 ? (totalAttended / totalClasses) * 100 : 0;
+                var color = 'hsla(' + (i * 60) + ', 70%, 60%, 0.7)'; // make different colors
+                datasets.push({ label: subject.name, data: [percentage], backgroundColor: color });
+            }
+
+            if (myChart) {
+                myChart.destroy(); // destroy old chart before making a new one
+            }
+
+            var textColor = (theme === 'dark') ? '#f1f5f9' : '#1e293b';
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: ['Overall Attendance (%)'], datasets: datasets },
+                options: {
+                    scales: { y: { beginAtZero: true, max: 100, ticks: { color: textColor } }, x: { ticks: { color: textColor } } },
+                    plugins: { legend: { labels: { color: textColor } } }
+                }
+            });
+        }
+        
+        // add a new subject
+        function addSubject() {
+            var name = subjectNameInput.value.trim();
+            if (name) {
+                subjects.push({ id: Date.now().toString(), name: name });
+                subjectNameInput.value = '';
+                if (!selectedSubjectId) {
+                    selectedSubjectId = subjects[0].id;
+                }
+                saveData();
+                renderSubjects();
+                renderDashboard();
+                renderChart();
+            }
+        }
+
+        // bye bye subject
+        function deleteSubject(id) {
+            if (confirm('Are you sure you want to delete this subject and all its attendance?')) {
+                subjects = subjects.filter(function(s) { return s.id !== id; });
+                
+                // also delete its attendance records
+                for (var date in attendance) {
+                    if (attendance[date][id]) {
+                        delete attendance[date][id];
+                    }
+                }
+                
+                if (selectedSubjectId === id) {
+                    selectedSubjectId = subjects.length > 0 ? subjects[0].id : null;
+                }
+                saveData();
+                renderSubjects();
+                renderCalendar();
+                renderDashboard();
+                renderChart();
+            }
+        }
+
+        // open the popup box
+        function openModal() {
+            modalDate.textContent = new Date(selectedDate + 'T00:00:00').toDateString();
+            var record = (attendance[selectedDate] && attendance[selectedDate][selectedSubjectId]) ? attendance[selectedDate][selectedSubjectId] : null;
+            
+            if (record) {
+                attendedCountInput.value = record.attended;
+                totalCountInput.value = record.total;
+            } else {
+                attendedCountInput.value = 1;
+                totalCountInput.value = 1;
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+        }
+
+        function saveAttendance() {
+            var attended = parseInt(attendedCountInput.value);
+            var total = parseInt(totalCountInput.value);
+            
+            // some checks to make sure the numbers are good
+            if (isNaN(attended) || isNaN(total) || attended < 0 || total <= 0 || attended > total) {
+                showNotification('Invalid input. Attended cant be more than total.');
+                return;
+            }
+            
+            if (!attendance[selectedDate]) {
+                attendance[selectedDate] = {};
+            }
+            attendance[selectedDate][selectedSubjectId] = { attended: attended, total: total };
+            
+            saveData();
+            closeModal();
+            renderCalendar();
+            renderDashboard();
+            renderChart();
+        }
+
+        function exportToCsv() {
+            if (!selectedSubjectId) return;
+
+            var subject = subjects.find(function(s){ return s.id === selectedSubjectId; });
+            var csvContent = "data:text/csv;charset=utf-8,Date,Attended,Total\n";
+
+            // get all records for this subject and sort them by date
+            var records = [];
+            for (var date in attendance) {
+                if (attendance[date][selectedSubjectId]) {
+                    records.push({ date: date, ...attendance[date][selectedSubjectId] });
+                }
+            }
+            records.sort(function(a,b){ return new Date(a.date) - new Date(b.date); });
+            
+            for(var i=0; i < records.length; i++){
+                var rec = records[i];
+                csvContent += rec.date + "," + rec.attended + "," + rec.total + "\n";
+            }
+            
+            var link = document.createElement("a");
+            link.href = encodeURI(csvContent);
+            link.download = subject.name + "_attendance.csv";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- BUTTON CLICKS AND STUFF ---
+        themeSwitcher.addEventListener('click', toggleTheme);
+        addSubjectBtn.addEventListener('click', addSubject);
+        subjectNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addSubject();
+            }
+        });
+        prevMonthBtn.addEventListener('click', function() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        });
+        nextMonthBtn.addEventListener('click', function() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        });
+        modalSaveBtn.addEventListener('click', saveAttendance);
+        modalCancelBtn.addEventListener('click', closeModal);
+        clearDataBtn.addEventListener('click', function() {
+            if (confirm('WARNING: This will delete everything. Are you sure?')) {
+                localStorage.removeItem('myAttendanceApp');
+                // reset all variables
+                subjects = [];
+                attendance = {};
+                currentMonth = new Date().getMonth();
+                currentYear = new Date().getFullYear();
+                selectedSubjectId = null;
+                // re-render everything
+                renderSubjects();
+                renderCalendar();
+                renderDashboard();
+                renderChart();
+            }
+        });
+        minAttendanceInput.addEventListener('change', function(e) {
+            minAttendance = parseInt(e.target.value) || 75;
+            saveData();
+            renderDashboard();
+        });
+        exportCsvBtn.addEventListener('click', exportToCsv);
+
+        // --- START THE ENGINE ---
+        loadData();
+        applyTheme();
+        if (!selectedSubjectId && subjects.length > 0) {
+            selectedSubjectId = subjects[0].id; // select the first subject if nothing is selected
+        }
+        renderSubjects();
+        renderCalendar();
+        renderDashboard();
+        renderChart();
+    });
+    </script>
+</body>
+</html>
